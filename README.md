@@ -9,7 +9,7 @@
 ---
 ## 🎯 Overview
 
-The **ESP Performance Dashboard v2.0** is a comprehensive web-based application designed for petroleum engineers and ESP (Electric Submersible Pump) specialists to design, monitor, and optimize ESP systems in oil and gas production wells. 
+The **ESP Performance Dashboard v1.0** is a comprehensive web-based application designed for petroleum engineers and ESP (Electric Submersible Pump) specialists to design, monitor, and optimize ESP systems in oil and gas production wells. 
 
 This professional-grade tool combines advanced engineering calculations with real-time monitoring capabilities, providing a complete solution for ESP system analysis from initial design through operational monitoring.
 
@@ -376,3 +376,4 @@ If you find this project useful, please consider giving it a ⭐!
 [⬆ Back to Top](#-esp-performance-dashboard-v20)
 
 </div>
+
