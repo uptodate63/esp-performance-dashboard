@@ -66,8 +66,6 @@ This professional-grade tool combines advanced engineering calculations with rea
 - ✅ Pump discharge pressure (PDP) monitoring
 - ✅ Differential pressure calculation
 - ✅ Pressure gradient tracking
-- ✅ Wellhead pressure updates
-- ✅ Fluid level monitoring
 
 #### **Performance Analysis**
 - ✅ Real-time flow rate calculation from sensor data
@@ -236,7 +234,7 @@ openpyxl>=3.1.0  # For Excel file handling
 - **Motor HP Nameplate**: Motor horsepower rating @ rated frequency
 - **Motor Voltage Nameplate**: Rated voltage (typically 1000-4000V)
 - **Motor Ampere Nameplate**: Rated current (A)
-- **Motor Frequency**: Operating frequency (Hz, typically 50 or 60)
+- **Motor Frequency**: Operating frequency (only 50 Hz Calculations in this version )
 - **Transformer Voltage**: Upstream transformer voltage (V)
 
 **Efficiency Parameters:**
@@ -301,12 +299,11 @@ After clicking "Calculate Complete ESP Design", this tab displays:
 1. **Pump Intake Pressure (PIP)**: Current downhole intake pressure (psi)
 2. **Pump Discharge Pressure (PDP)**: Current discharge pressure (psi)
 3. **Differential Pressure**: Automatically calculated (ΔP = PDP - PIP)
-4. **Pressure Gradient**: psi/ft, typically 0.4-0.5 for oil wells
+
 
 **Right Panel - Current Wellhead Data:**
-1. **Current Wellhead Pressure**: Real-time surface pressure (psi)
-2. **Current Fluid Level**: Measured or calculated fluid level (ft)
-3. **Stages Currently Operating**: May differ from design if stages failed
+1. **Stages Currently Operating**: May differ from design if stages failed
+2. **Pressure Gradient**: psi/ft, typically 0.4-0.5 for oil wells
 
 #### Analyzing Results
 
@@ -376,4 +373,5 @@ If you find this project useful, please consider giving it a ⭐!
 [⬆ Back to Top](#-esp-performance-dashboard-v20)
 
 </div>
+
 
