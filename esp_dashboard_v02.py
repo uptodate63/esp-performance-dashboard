@@ -88,15 +88,71 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
-if 'pump_data_loaded' not in st.session_state:
-    st.session_state.pump_data_loaded = False
-if 'design_calculated' not in st.session_state:
-    st.session_state.design_calculated = False
-if 'custom_pump_loaded' not in st.session_state:
-    st.session_state.custom_pump_loaded = False
+# Initialize session state for user inputs
+def init_session_state():
+    """Initialize all session state variables if they don't exist"""
+    defaults = {
+        'pump_data_loaded': False,
+        'design_calculated': False,
+        'custom_pump_loaded': False,
+        # ESP Selection inputs
+        'pump_model': '',
+        'bep_flow': None,
+        'rec_min': None,
+        'rec_max': None,
+        'bhp_per_stage': None,
+        # Well Data inputs
+        'well_name': '',
+        'perf_start_depth_md': None,
+        'perf_start_depth_tvd': None,
+        'pump_setting_depth_tvd': None,
+        'pump_setting_depth_md': None,
+        'tubing_id': None,
+        'target_rate': None,
+        'water_cut': None,
+        # Pressure & Temperature inputs
+        'p_wh': None,
+        'static_pressure': None,
+        'bottom_hole_temp': None,
+        # Fluid Properties inputs
+        'water_sg': None,
+        'oil_api': None,
+        'gas_sg': None,
+        'bubble_point_pressure': None,
+        'gas_compressibility': None,
+        'gor': None,
+        'productivity_index': None,
+        # Equipment inputs
+        'pump_od': None,
+        'num_rgs_od400': None,
+        'num_rgs_od500': None,
+        'num_agh_od400': None,
+        'num_agh_od500': None,
+        'cable_number': None,
+        # Electrical inputs
+        'motor_hp_nameplate': None,
+        'motor_voltage_nameplate': None,
+        'motor_ampere_nameplate': None,
+        'motor_frequency': None,
+        'transformer_voltage': None,
+        'motor_power_factor': None,
+        'motor_efficiency': None,
+        'pump_efficiency': None,
+        # Live monitoring inputs - persist these
+        'pip_value': None,
+        'pdp_value': None,
+        'p_gradient_value': None,
+        'actual_stages_value': None,
+    }
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-# Default pump curve data (OD538-3000)
+# Call initialization
+init_session_state()
+
+# Default pump curve data (ESP-3000) - only for reference
 DEFAULT_Q_CURVE = [
     48.86,111.21,159.86,201.57,257.17,305.83,361.43,433.98,472.69,528.24,
     684.46,736.78,827.12,910.52,986.38,1070.38,1145.84,1267.20,1327.36,
@@ -133,11 +189,10 @@ with st.sidebar:
     st.markdown("<h3 style='color: #E6EDF3;'>About</h3>", unsafe_allow_html=True)
     st.info("""
     **Part 1:** Complete ESP system design with running sheet calculations including:
-    - Custom pump curve upload
+    - Custom pump curve excel data upload
     - Well fluid properties
     - PVT calculations
-    - Electrical parameters
-    - Production forecasting
+    - ESP Electrical parameters
     
     **Part 2:** Monitor live ESP operation with real-time sensor data and performance tracking.
     """)
@@ -154,22 +209,28 @@ if page == "📊 Part 1: Design & Sizing":
     st.header("📊 Part 1: ESP System Design & Sizing")
     
     # Create tabs for better organization
-    tab1, tab2, tab3, tab4 = st.tabs(["🔧 Pump Selection", "🏭 Well & Fluid Data", "⚡ Equipment & Electrical", "📋 Results & Analysis"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🔧 ESP Selection", "🏭 Well & Fluid Data", "⚡ Equipment & Electrical Parameters", "📋 Results & Analysis"])
     
-    # ========== TAB 1: PUMP SELECTION ==========
+    # ========== TAB 1: ESP SELECTION ==========
     with tab1:
         st.subheader("🔧 Pump Curve Data")
         
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            pump_model = st.text_input("Pump Model", value="OD538-3000", key="pump_model_input")
+            pump_model = st.text_input(
+                "ESP Model", 
+                value=st.session_state.pump_model,
+                placeholder="e.g., ESP-3000",
+                key="pump_model_input"
+            )
+            st.session_state.pump_model = pump_model
             
             pump_source = st.radio("Pump Data Source:", 
-                                  ["Use Default Pump (OD538-3000)", "Upload Custom Pump Curve"],
+                                  ["Use Default Pump (ESP-3000)", "Upload Custom Pump Curve"],
                                   key="pump_source")
             
-            if pump_source == "Use Default Pump (OD538-3000)":
+            if pump_source == "Use Default Pump (ESP-3000)":
                 q_curve_data = DEFAULT_Q_CURVE
                 h_curve_data = DEFAULT_H_CURVE
                 st.success(f"✓ Loaded {len(q_curve_data)} data points from default pump")
@@ -181,7 +242,7 @@ if page == "📊 Part 1: Design & Sizing":
                 **Excel Format Requirements:**
                 - Column 1: Flow Rate (bpd)
                 - Column 2: Head per Stage (ft)
-                - Data should start from row 1
+                - Data should start from row 1, Column A
                 - No headers needed
                 """)
                 
@@ -215,7 +276,7 @@ if page == "📊 Part 1: Design & Sizing":
                                 'Head (ft)': h_curve_data[:10]
                             })
                             with st.expander("📊 Preview First 10 Points"):
-                                st.dataframe(preview_df, use_container_width=True)
+                                st.dataframe(preview_df, width='stretch')
                     except Exception as e:
                         st.error(f"❌ Error reading Excel file: {str(e)}")
                         q_curve_data = DEFAULT_Q_CURVE
@@ -227,15 +288,42 @@ if page == "📊 Part 1: Design & Sizing":
         
         with col2:
             st.markdown("### 📈 Performance Parameters")
-            bep_flow = st.number_input("BEP Flow Rate (bpd)", value=2502.2, step=10.0, 
-                                      help="Best Efficiency Point flow rate")
-            rec_min = st.number_input("Recommended Min Flow (bpd)", value=2001.76, step=10.0,
-                                     help="Minimum recommended operating flow")
-            rec_max = st.number_input("Recommended Max Flow (bpd)", value=3009.60, step=10.0,
-                                     help="Maximum recommended operating flow")
             
-            bhp_per_stage = st.number_input("BHP per Stage (from pump curve)", value=0.936, step=0.01,
-                                           help="Brake horsepower per stage at design point")
+            bep_flow = st.number_input(
+                "BEP Flow Rate (bpd)", 
+                value=st.session_state.bep_flow if st.session_state.bep_flow is not None else None,
+                placeholder="e.g., 2500",
+                step=10.0, 
+                help="Best Efficiency Point flow rate"
+            )
+            st.session_state.bep_flow = bep_flow
+            
+            rec_min = st.number_input(
+                "Recommended Min Flow (bpd)", 
+                value=st.session_state.rec_min if st.session_state.rec_min is not None else None,
+                placeholder="e.g., 2000",
+                step=10.0,
+                help="Minimum recommended operating flow"
+            )
+            st.session_state.rec_min = rec_min
+            
+            rec_max = st.number_input(
+                "Recommended Max Flow (bpd)", 
+                value=st.session_state.rec_max if st.session_state.rec_max is not None else None,
+                placeholder="e.g., 3000",
+                step=10.0,
+                help="Maximum recommended operating flow"
+            )
+            st.session_state.rec_max = rec_max
+            
+            bhp_per_stage = st.number_input(
+                "BHP per Stage (read from pump curve)", 
+                value=st.session_state.bhp_per_stage if st.session_state.bhp_per_stage is not None else None,
+                placeholder="e.g., 0.936",
+                step=0.01,
+                help="Brake horsepower per stage at design point"
+            )
+            st.session_state.bhp_per_stage = bhp_per_stage
     
     # ========== TAB 2: WELL & FLUID DATA ==========
     with tab2:
@@ -243,33 +331,165 @@ if page == "📊 Part 1: Design & Sizing":
         
         with col1:
             st.markdown("### 🏭 Well Data")
-            well_name = st.text_input("Well Name", value="NT3")
+            
+            well_name = st.text_input(
+                "Well Name", 
+                value=st.session_state.well_name,
+                placeholder="e.g., NT3"
+            )
+            st.session_state.well_name = well_name
             
             st.markdown("#### 📏 Well Geometry")
-            perf_start_depth_md = st.number_input("Perforation Start Depth (MD, ft)", value=6200, step=100)
-            perf_start_depth_tvd = st.number_input("Perforation Start Depth (TVD, ft)", value=6200, step=100)
-            pump_setting_depth_tvd = st.number_input("Pump Setting Depth (TVD, ft)", value=5695, step=100)
-            pump_setting_depth_md = st.number_input("Pump Setting Depth (MD, ft)", value=5695, step=100)
-            tubing_id = st.number_input("Tubing ID (inch)", value=3.958, step=0.001, format="%.3f")
+            
+            perf_start_depth_md = st.number_input(
+                "Perforation Start Depth (MD, ft)", 
+                value=st.session_state.perf_start_depth_md if st.session_state.perf_start_depth_md is not None else None,
+                placeholder="e.g., 6200",
+                step=100
+            )
+            st.session_state.perf_start_depth_md = perf_start_depth_md
+            
+            perf_start_depth_tvd = st.number_input(
+                "Perforation Start Depth (TVD, ft)", 
+                value=st.session_state.perf_start_depth_tvd if st.session_state.perf_start_depth_tvd is not None else None,
+                placeholder="e.g., 6200",
+                step=100
+            )
+            st.session_state.perf_start_depth_tvd = perf_start_depth_tvd
+            
+            pump_setting_depth_md = st.number_input(
+                "Pump Setting Depth (MD, ft)", 
+                value=st.session_state.pump_setting_depth_md if st.session_state.pump_setting_depth_md is not None else None,
+                placeholder="e.g., 5695",
+                step=100
+            )
+            st.session_state.pump_setting_depth_md = pump_setting_depth_md
+            
+            pump_setting_depth_tvd = st.number_input(
+                "Pump Setting Depth (TVD, ft)", 
+                value=st.session_state.pump_setting_depth_tvd if st.session_state.pump_setting_depth_tvd is not None else None,
+                placeholder="e.g., 5695",
+                step=100
+            )
+            st.session_state.pump_setting_depth_tvd = pump_setting_depth_tvd
+            
+            tubing_id = st.number_input(
+                "Tubing ID (inch)", 
+                value=st.session_state.tubing_id if st.session_state.tubing_id is not None else None,
+                placeholder="e.g., 3.958",
+                step=0.001, 
+                format="%.3f"
+            )
+            st.session_state.tubing_id = tubing_id
             
             st.markdown("#### 💧 Production Data")
-            target_rate = st.number_input("Desired Surface Gross Rate (bpd)", value=800, step=50)
-            water_cut = st.number_input("Water Cut (fraction, e.g., 0.02 for 2%)", value=0.02, step=0.01, format="%.3f")
+            
+            target_rate = st.number_input(
+                "Desired Surface Gross Rate (STBD)", 
+                value=st.session_state.target_rate if st.session_state.target_rate is not None else None,
+                placeholder="e.g., 800",
+                step=50
+            )
+            st.session_state.target_rate = target_rate
+            
+            water_cut = st.number_input(
+                "Water Cut (fraction, e.g., 0.02 for 2%)", 
+                value=st.session_state.water_cut if st.session_state.water_cut is not None else None,
+                placeholder="e.g., 0.02",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.water_cut = water_cut
             
         with col2:
             st.markdown("### 🌡️ Pressure & Temperature")
-            p_wh = st.number_input("Wellhead Pressure (psi)", value=700, step=10)
-            static_pressure = st.number_input("Static Pressure (psi)", value=3000, step=100)
-            bottom_hole_temp = st.number_input("Bottom Hole Temperature (°F)", value=230, step=10)
+            
+            p_wh = st.number_input(
+                "Wellhead Pressure (psi)", 
+                value=st.session_state.p_wh if st.session_state.p_wh is not None else None,
+                placeholder="e.g., 700",
+                step=10
+            )
+            st.session_state.p_wh = p_wh
+            
+            static_pressure = st.number_input(
+                "Reservoir Static Pressure (psi)", 
+                value=st.session_state.static_pressure if st.session_state.static_pressure is not None else None,
+                placeholder="e.g., 3000",
+                step=100
+            )
+            st.session_state.static_pressure = static_pressure
+            
+            bottom_hole_temp = st.number_input(
+                "Bottom Hole Temperature (°F)", 
+                value=st.session_state.bottom_hole_temp if st.session_state.bottom_hole_temp is not None else None,
+                placeholder="e.g., 230",
+                step=10
+            )
+            st.session_state.bottom_hole_temp = bottom_hole_temp
             
             st.markdown("### 🔬 Well Fluid Properties")
-            water_sg = st.number_input("Water Specific Gravity", value=1.01, step=0.01, format="%.3f")
-            oil_api = st.number_input("Oil API Gravity", value=27.0, step=1.0, format="%.1f")
-            gas_sg = st.number_input("Gas Specific Gravity", value=0.88, step=0.01, format="%.3f")
-            bubble_point_pressure = st.number_input("Bubble Point Pressure (psi)", value=1661, step=10)
-            gas_compressibility = st.number_input("Gas Compressibility Factor (Z)", value=0.85, step=0.01, format="%.3f")
-            gor = st.number_input("GOR (SCF/STB)", value=450, step=10)
-            productivity_index = st.number_input("Productivity Index (bpd/psi)", value=1.0, step=0.1, format="%.1f")
+            
+            water_sg = st.number_input(
+                "Water Specific Gravity", 
+                value=st.session_state.water_sg if st.session_state.water_sg is not None else None,
+                placeholder="e.g., 1.01",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.water_sg = water_sg
+            
+            oil_api = st.number_input(
+                "Oil API Gravity", 
+                value=st.session_state.oil_api if st.session_state.oil_api is not None else None,
+                placeholder="e.g., 27.0",
+                step=1.0, 
+                format="%.1f"
+            )
+            st.session_state.oil_api = oil_api
+            
+            gas_sg = st.number_input(
+                "Gas Specific Gravity", 
+                value=st.session_state.gas_sg if st.session_state.gas_sg is not None else None,
+                placeholder="e.g., 0.88",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.gas_sg = gas_sg
+            
+            bubble_point_pressure = st.number_input(
+                "Well Fluid Bubble Point Pressure (psi)", 
+                value=st.session_state.bubble_point_pressure if st.session_state.bubble_point_pressure is not None else None,
+                placeholder="e.g., 1661",
+                step=10
+            )
+            st.session_state.bubble_point_pressure = bubble_point_pressure
+            
+            gas_compressibility = st.number_input(
+                "Gas Compressibility Factor (Z)", 
+                value=st.session_state.gas_compressibility if st.session_state.gas_compressibility is not None else None,
+                placeholder="e.g., 0.85",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.gas_compressibility = gas_compressibility
+            
+            gor = st.number_input(
+                "GOR (SCF/STB)", 
+                value=st.session_state.gor if st.session_state.gor is not None else None,
+                placeholder="e.g., 450",
+                step=10
+            )
+            st.session_state.gor = gor
+            
+            productivity_index = st.number_input(
+                "Productivity Index (STBD/psi)", 
+                value=st.session_state.productivity_index if st.session_state.productivity_index is not None else None,
+                placeholder="e.g., 1.0",
+                step=0.1, 
+                format="%.1f"
+            )
+            st.session_state.productivity_index = productivity_index
     
     # ========== TAB 3: EQUIPMENT & ELECTRICAL ==========
     with tab3:
@@ -277,35 +497,206 @@ if page == "📊 Part 1: Design & Sizing":
         
         with col1:
             st.markdown("### ⚙️ ESP Equipment")
-            pump_od = st.number_input("Pump OD (inch)", value=5.0, step=0.1, format="%.1f")
-            num_rgs_od400 = st.number_input("No. of RGS (OD400)", value=0, step=1)
-            num_rgs_od500 = st.number_input("No. of RGS (OD500)", value=1, step=1)
-            num_agh_od400 = st.number_input("No. of AGH (OD400)", value=0, step=1)
-            num_agh_od500 = st.number_input("No. of AGH (OD500)", value=0, step=1)
             
-            st.markdown("#### 🔌 Cable Data")
-            cable_number = st.number_input("Cable #", value=1, step=1, help="1 or 2 for resistance calculation")
+            pump_od = st.number_input(
+                "Pump OD (inch)", 
+                value=st.session_state.pump_od if st.session_state.pump_od is not None else None,
+                placeholder="e.g., 5.0",
+                step=0.1, 
+                format="%.1f"
+            )
+            st.session_state.pump_od = pump_od
+            
+            num_rgs_od400 = st.number_input(
+                "No. of RGS used in BHA (OD400 Series)", 
+                value=st.session_state.num_rgs_od400 if st.session_state.num_rgs_od400 is not None else 0,
+                step=1
+            )
+            st.session_state.num_rgs_od400 = num_rgs_od400
+            
+            num_rgs_od500 = st.number_input(
+                "No. of RGS used in BHA (OD500 Series)", 
+                value=st.session_state.num_rgs_od500 if st.session_state.num_rgs_od500 is not None else 0,
+                step=1
+            )
+            st.session_state.num_rgs_od500 = num_rgs_od500
+            
+            num_agh_od400 = st.number_input(
+                "No. of AGH used in BHA (OD400 Series)", 
+                value=st.session_state.num_agh_od400 if st.session_state.num_agh_od400 is not None else 0,
+                step=1
+            )
+            st.session_state.num_agh_od400 = num_agh_od400
+            
+            num_agh_od500 = st.number_input(
+                "No. of AGH used in BHA (OD500 Series)", 
+                value=st.session_state.num_agh_od500 if st.session_state.num_agh_od500 is not None else 0,
+                step=1
+            )
+            st.session_state.num_agh_od500 = num_agh_od500
+            
+            st.markdown("#### 🔌 ESP Cable Data")
+            
+            cable_number = st.number_input(
+                "Cable #", 
+                value=st.session_state.cable_number if st.session_state.cable_number is not None else None,
+                placeholder="1 or 2",
+                step=1, 
+                help="1 or 2 for resistance calculation"
+            )
+            st.session_state.cable_number = cable_number
             
         with col2:
-            st.markdown("### ⚡ Electrical Data")
-            motor_hp_nameplate = st.number_input("Motor Nameplate HP @ 50 Hz", value=300, step=10)
-            motor_voltage_nameplate = st.number_input("Motor Nameplate Voltage @ 50 Hz", value=2125, step=10)
-            motor_ampere_nameplate = st.number_input("Motor Nameplate Ampere", value=89, step=1)
-            motor_frequency = st.number_input("Motor Frequency (Hz)", value=50, step=1)
-            transformer_voltage = st.number_input("Transformer Upstream Voltage", value=15000, step=100)
+            st.markdown("### ⚡ ESP Electrical Data")
+            
+            motor_hp_nameplate = st.number_input(
+                "Motor Nameplate HP @ 50 Hz", 
+                value=st.session_state.motor_hp_nameplate if st.session_state.motor_hp_nameplate is not None else None,
+                placeholder="e.g., 300",
+                step=10
+            )
+            st.session_state.motor_hp_nameplate = motor_hp_nameplate
+            
+            motor_voltage_nameplate = st.number_input(
+                "Motor Nameplate Voltage @ 50 Hz", 
+                value=st.session_state.motor_voltage_nameplate if st.session_state.motor_voltage_nameplate is not None else None,
+                placeholder="e.g., 2125",
+                step=10
+            )
+            st.session_state.motor_voltage_nameplate = motor_voltage_nameplate
+            
+            motor_ampere_nameplate = st.number_input(
+                "Motor Nameplate Ampere", 
+                value=st.session_state.motor_ampere_nameplate if st.session_state.motor_ampere_nameplate is not None else None,
+                placeholder="e.g., 89",
+                step=1
+            )
+            st.session_state.motor_ampere_nameplate = motor_ampere_nameplate
+            
+            motor_frequency = st.number_input(
+                "Motor Frequency (Hz)", 
+                value=st.session_state.motor_frequency if st.session_state.motor_frequency is not None else None,
+                placeholder="e.g., 50",
+                step=1
+            )
+            st.session_state.motor_frequency = motor_frequency
+            
+            transformer_voltage = st.number_input(
+                "Transformer Upstream Voltage (Volts)", 
+                value=st.session_state.transformer_voltage if st.session_state.transformer_voltage is not None else None,
+                placeholder="e.g., 15000",
+                step=100
+            )
+            st.session_state.transformer_voltage = transformer_voltage
             
             st.markdown("#### 📊 Efficiency Parameters")
-            motor_power_factor = st.number_input("Motor Power Factor (KW/KVA)", value=0.84, step=0.01, format="%.3f")
-            motor_efficiency = st.number_input("Motor Efficiency", value=0.80, step=0.01, format="%.3f")
-            pump_efficiency = st.number_input("Pump Efficiency", value=0.56, step=0.01, format="%.3f")
+            
+            motor_power_factor = st.number_input(
+                "Motor Power Factor (KW/KVA)", 
+                value=st.session_state.motor_power_factor if st.session_state.motor_power_factor is not None else None,
+                placeholder="e.g., 0.84",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.motor_power_factor = motor_power_factor
+            
+            motor_efficiency = st.number_input(
+                "Motor Efficiency", 
+                value=st.session_state.motor_efficiency if st.session_state.motor_efficiency is not None else None,
+                placeholder="e.g., 0.80",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.motor_efficiency = motor_efficiency
+            
+            pump_efficiency = st.number_input(
+                "Pump Efficiency", 
+                value=st.session_state.pump_efficiency if st.session_state.pump_efficiency is not None else None,
+                placeholder="e.g., 0.56",
+                step=0.01, 
+                format="%.3f"
+            )
+            st.session_state.pump_efficiency = pump_efficiency
     
     # ========== CALCULATION BUTTON ==========
     st.markdown("---")
-    if st.button("🚀 Calculate Complete ESP Design", use_container_width=True, type="primary"):
+    
+    # Validate all required inputs before allowing calculation
+    required_fields = [
+        ('bep_flow', 'BEP Flow Rate'),
+        ('rec_min', 'Recommended Min Flow'),
+        ('rec_max', 'Recommended Max Flow'),
+        ('bhp_per_stage', 'BHP per Stage'),
+        ('perf_start_depth_md', 'Perforation Start Depth (MD)'),
+        ('perf_start_depth_tvd', 'Perforation Start Depth (TVD)'),
+        ('pump_setting_depth_tvd', 'Pump Setting Depth (TVD)'),
+        ('pump_setting_depth_md', 'Pump Setting Depth (MD)'),
+        ('tubing_id', 'Tubing ID'),
+        ('target_rate', 'Target Rate'),
+        ('water_cut', 'Water Cut'),
+        ('p_wh', 'Wellhead Pressure'),
+        ('static_pressure', 'Static Pressure'),
+        ('bottom_hole_temp', 'Bottom Hole Temperature'),
+        ('water_sg', 'Water Specific Gravity'),
+        ('oil_api', 'Oil API Gravity'),
+        ('gas_sg', 'Gas Specific Gravity'),
+        ('bubble_point_pressure', 'Bubble Point Pressure'),
+        ('gas_compressibility', 'Gas Compressibility'),
+        ('gor', 'GOR'),
+        ('productivity_index', 'Productivity Index'),
+        ('pump_od', 'Pump OD'),
+        ('cable_number', 'Cable Number'),
+        ('motor_hp_nameplate', 'Motor HP'),
+        ('motor_voltage_nameplate', 'Motor Voltage'),
+        ('motor_ampere_nameplate', 'Motor Ampere'),
+        ('motor_frequency', 'Motor Frequency'),
+        ('transformer_voltage', 'Transformer Voltage'),
+        ('motor_power_factor', 'Motor Power Factor'),
+        ('motor_efficiency', 'Motor Efficiency'),
+        ('pump_efficiency', 'Pump Efficiency'),
+    ]
+    
+    missing_fields = [label for field, label in required_fields if st.session_state[field] is None]
+    
+    if missing_fields:
+        st.warning(f"⚠️ Please fill in all required fields. Missing: {', '.join(missing_fields[:5])}{'...' if len(missing_fields) > 5 else ''}")
+    
+    if st.button("🚀 Calculate Complete ESP Design", width='stretch', type="primary", disabled=bool(missing_fields)):
         with st.spinner("Performing comprehensive calculations..."):
             try:
                 # Create interpolation function
                 pump_curve = interp1d(q_curve_data, h_curve_data, kind="cubic", fill_value="extrapolate")
+                
+                # Get values from session state
+                target_rate = st.session_state.target_rate
+                water_cut = st.session_state.water_cut
+                oil_api = st.session_state.oil_api
+                static_pressure = st.session_state.static_pressure
+                productivity_index = st.session_state.productivity_index
+                bubble_point_pressure = st.session_state.bubble_point_pressure
+                gas_sg = st.session_state.gas_sg
+                bottom_hole_temp = st.session_state.bottom_hole_temp
+                perf_start_depth_tvd = st.session_state.perf_start_depth_tvd
+                pump_setting_depth_tvd = st.session_state.pump_setting_depth_tvd
+                pump_setting_depth_md = st.session_state.pump_setting_depth_md
+                p_wh = st.session_state.p_wh
+                water_sg = st.session_state.water_sg
+                gor = st.session_state.gor
+                gas_compressibility = st.session_state.gas_compressibility
+                tubing_id = st.session_state.tubing_id
+                motor_ampere_nameplate = st.session_state.motor_ampere_nameplate
+                motor_hp_nameplate = st.session_state.motor_hp_nameplate
+                motor_voltage_nameplate = st.session_state.motor_voltage_nameplate
+                cable_number = st.session_state.cable_number
+                transformer_voltage = st.session_state.transformer_voltage
+                motor_power_factor = st.session_state.motor_power_factor
+                motor_efficiency = st.session_state.motor_efficiency
+                bhp_per_stage = st.session_state.bhp_per_stage
+                pump_od = st.session_state.pump_od
+                num_rgs_od400 = st.session_state.num_rgs_od400
+                num_rgs_od500 = st.session_state.num_rgs_od500
+                num_agh_od400 = st.session_state.num_agh_od400
+                num_agh_od500 = st.session_state.num_agh_od500
                 
                 # ===== FLUID PROPERTIES CALCULATIONS =====
                 # Oil specific gravity
@@ -385,7 +776,7 @@ if page == "📊 Part 1: Design & Sizing":
                 pump_intake_pressure = flowing_bhp - ((perf_start_depth_tvd - pump_setting_depth_tvd) * fluid_sg * 0.433)
                 
                 # Bg at pump intake pressure
-                bg = 5.04 * gas_compressibility * (bottom_hole_temp + 460) / pump_intake_pressure
+                bg = 28.27 * gas_compressibility * (bottom_hole_temp + 460) / pump_intake_pressure
                 
                 # Gas production downhole
                 gas_prod_downhole = free_gas_volume * bg
@@ -435,7 +826,7 @@ if page == "📊 Part 1: Design & Sizing":
                 # ===== HORSEPOWER CALCULATIONS =====
                 # Required HP at first startup
                 if pump_od == 4:
-                    required_hp_startup = (n_stages * bhp_per_stage) + (4.5 * num_rgs_od400 / 1.2) + (30 * 0)  # F506 not defined
+                    required_hp_startup = (n_stages * bhp_per_stage) + (4.5 * num_rgs_od400 / 1.2) + (30 * num_agh_od400) 
                 else:
                     required_hp_startup = (n_stages * bhp_per_stage + num_rgs_od500 * 11/1.2 + num_agh_od500 * 30)
                 
@@ -494,17 +885,9 @@ if page == "📊 Part 1: Design & Sizing":
                 st.session_state.pump_curve = pump_curve
                 st.session_state.q_curve_data = q_curve_data
                 st.session_state.h_curve_data = h_curve_data
-                st.session_state.target_rate = target_rate
                 st.session_state.TDH_design = TDH_design
                 st.session_state.n_stages = n_stages
                 st.session_state.head_per_stage = head_per_stage
-                st.session_state.bep_flow = bep_flow
-                st.session_state.rec_min = rec_min
-                st.session_state.rec_max = rec_max
-                st.session_state.well_name = well_name
-                st.session_state.pump_model = pump_model
-                st.session_state.pump_setting_depth_md = pump_setting_depth_md
-                st.session_state.pump_setting_depth_tvd = pump_setting_depth_tvd
                 st.session_state.friction_factor = friction_factor
                 
                 # Store all calculated values
@@ -603,7 +986,7 @@ if page == "📊 Part 1: Design & Sizing":
                     st.write(f"• Fluid Sp. Gr: {st.session_state.calc['fluid_sg']:.4f}")
                     st.write(f"• Tubing Composite Sp. Gr: {st.session_state.calc['tubing_composite_sg']:.4f}")
                 with col2:
-                    st.markdown("**PVT Properties:**")
+                    st.markdown("**PVT Properties(Based on Standing Correlation):**")
                     st.write(f"• Rs (SCF/STB): {st.session_state.calc['rs']:.2f}")
                     st.write(f"• Bo (bbl/STB): {st.session_state.calc['bo']:.4f}")
                     st.write(f"• Bg (bbl/mcf): {st.session_state.calc['bg']:.4f}")
@@ -673,10 +1056,21 @@ if page == "📊 Part 1: Design & Sizing":
             
             # Performance Chart
             st.markdown("---")
-            st.subheader("📈 Performance Curve")
+            st.subheader("📈 ESP Performance Curve")
             
-            q_range = np.linspace(0, max(st.session_state.q_curve_data) * 1.05, 100)
-            h_single_stage = st.session_state.pump_curve(q_range)
+            # Use monotonic interpolation to prevent oscillations
+            from scipy.interpolate import PchipInterpolator
+
+            max_q = max(st.session_state.q_curve_data)
+            q_range = np.linspace(0, max_q, 100)
+
+            # Use PCHIP (Piecewise Cubic Hermite Interpolating Polynomial) 
+            # which preserves monotonicity and prevents oscillations
+            pchip_curve = PchipInterpolator(st.session_state.q_curve_data, st.session_state.h_curve_data)
+            h_single_stage = pchip_curve(q_range)
+
+            # Clip negative heads to zero
+            h_single_stage = np.maximum(h_single_stage, 0)
             h_full_pump = h_single_stage * st.session_state.n_stages
             
             # Create system curve
@@ -774,7 +1168,7 @@ if page == "📊 Part 1: Design & Sizing":
             fig.update_xaxes(gridcolor='rgba(48, 54, 61, 0.3)', showline=True, linecolor='#30363D')
             fig.update_yaxes(gridcolor='rgba(48, 54, 61, 0.3)', showline=True, linecolor='#30363D')
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
         else:
             st.info("👈 Please fill in all data in the tabs above and click 'Calculate Complete ESP Design' to see results")
@@ -809,48 +1203,72 @@ elif page == "🔴 Part 2: Live Monitoring":
         with st.container():
             st.markdown('<div class="calculation-section">', unsafe_allow_html=True)
             st.markdown("#### Pump Pressures")
-            pip = st.number_input("Pump Intake Pressure (psi)", value=639.4, step=10.0, key="pip")
-            pdp = st.number_input("Pump Discharge Pressure (psi)", value=2646.9, step=10.0, key="pdp")
+            pip = st.number_input(
+                "Pump Intake Pressure (psi)", 
+                value=st.session_state.pip_value,
+                placeholder="e.g., 639.4", 
+                step=10.0, 
+                key="pip"
+            )
+            st.session_state.pip_value = pip
             
-            delta_p = pdp - pip
-            st.metric("Differential Pressure (ΔP)", f"{delta_p:.1f} psi", 
-                     delta=f"{delta_p - 2000:.1f} psi from baseline" if 'baseline_dp' in st.session_state else None)
+            pdp = st.number_input(
+                "Pump Discharge Pressure (psi)", 
+                value=st.session_state.pdp_value,
+                placeholder="e.g., 2646.9", 
+                step=10.0, 
+                key="pdp"
+            )
+            st.session_state.pdp_value = pdp
+            
+            if pip is not None and pdp is not None:
+                delta_p = pdp - pip
+                st.metric("Pump Differential Pressure (ΔP)", f"{delta_p:.1f} psi", 
+                         delta=f"{delta_p - 2000:.1f} psi from baseline" if 'baseline_dp' in st.session_state else None)
             st.markdown('</div>', unsafe_allow_html=True)
         
-        st.markdown('<div class="calculation-section">', unsafe_allow_html=True)
-        st.markdown("#### Fluid Properties")
-        p_gradient = st.number_input("Pressure Gradient (psi/ft)", value=0.4051, step=0.001, format="%.4f", key="pg")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
     with col2:
-        st.markdown("### 📊 Current Wellhead Data")
+        st.markdown("### 📊 Operating Info")
         
         with st.container():
             st.markdown('<div class="calculation-section">', unsafe_allow_html=True)
-            current_wh_pressure = st.number_input("Current Wellhead Pressure (psi)", 
-                                                   value=700.0, step=10.0, key="current_whp")
-            current_fluid_level = st.number_input("Current Fluid Level (ft)", 
-                                                   value=3821.0, step=10.0, key="current_fl")
+            actual_stages = st.number_input(
+                "Stages Currently Operating", 
+                value=st.session_state.actual_stages_value if st.session_state.actual_stages_value is not None else (st.session_state.n_stages if st.session_state.design_calculated else None),
+                placeholder=f"e.g., {st.session_state.n_stages if st.session_state.design_calculated else 'Enter stages'}",
+                step=1, 
+                key="stages_input"
+            )
+            st.session_state.actual_stages_value = actual_stages
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('<div class="calculation-section">', unsafe_allow_html=True)
-        st.markdown("#### Operating Info")
-        actual_stages = st.number_input("Stages Currently Operating", 
-                                         value=st.session_state.n_stages, 
-                                         step=1, 
-                                         key="stages_input")
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("#### Fluid Properties")
+            p_gradient = st.number_input(
+                "Tubing Fluid Pressure Gradient (psi/ft)", 
+                value=st.session_state.p_gradient_value,
+                placeholder="e.g., 0.4051", 
+                step=0.001, 
+                format="%.4f", 
+                key="pg"
+            )
+            st.session_state.p_gradient_value = p_gradient
+            st.markdown('</div>', unsafe_allow_html=True)
     
     # Update button with enhanced styling
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
+        # Check if all required fields are filled
+        can_update = all([pip is not None, pdp is not None, p_gradient is not None, actual_stages is not None])
+        if not can_update:
+            st.warning("⚠️ Please fill in all sensor data fields above")
+        
         update_button = st.button("🔄 Update Live Data & Analyze Performance", 
-                                  use_container_width=True, type="primary")
+                                  width='stretch', type="primary", disabled=not can_update)
     
-    if update_button:
+    if update_button and can_update:
         with st.spinner("Processing sensor data and analyzing performance..."):
             # Calculate actual operating point
+            delta_p = pdp - pip
             H_actual_stages = delta_p / p_gradient
             H_per_stage = H_actual_stages / actual_stages
             H_actual = H_per_stage
@@ -933,7 +1351,7 @@ elif page == "🔴 Part 2: Live Monitoring":
             
             with col2:
                 st.markdown("**Performance:**")
-                st.write(f"• Current Flow: {st.session_state.live_Q:.0f} bpd")
+                st.write(f"• Live Flow: {st.session_state.live_Q:.0f} bpd")
                 st.write(f"• Total Head: {st.session_state.live_H:.0f} ft")
                 st.write(f"• Head per Stage: {st.session_state.live_H_per_stage:.2f} ft")
                 st.write(f"• Operating Stages: {st.session_state.live_stages}")
@@ -986,18 +1404,21 @@ elif page == "🔴 Part 2: Live Monitoring":
         st.markdown("---")
         st.subheader("📈 Live Performance Visualization")
         
-        # Prepare plot data
-        q_range = np.linspace(0, max(st.session_state.q_curve_data) * 1.05, 100)
-        h_single_stage = st.session_state.pump_curve(q_range)
-        h_full_pump = h_single_stage * st.session_state.live_stages
+        # Use monotonic interpolation to prevent oscillations
+        from scipy.interpolate import PchipInterpolator
+
+        max_q = max(st.session_state.q_curve_data)
+        q_range = np.linspace(0, max_q, 100)
+
+        # Use PCHIP (Piecewise Cubic Hermite Interpolating Polynomial) 
+        # which preserves monotonicity and prevents oscillations
+        pchip_curve = PchipInterpolator(st.session_state.q_curve_data, st.session_state.h_curve_data)
+        h_single_stage = pchip_curve(q_range)
+
+        # Clip negative heads to zero
+        h_single_stage = np.maximum(h_single_stage, 0)
+        h_full_pump = h_single_stage * st.session_state.n_stages
         
-        def calculate_tdh(q):
-            if q == 0:
-                return st.session_state.calc['h_lift'] + st.session_state.calc['h_surf']
-            friction_at_q = st.session_state.friction_factor * (st.session_state.pump_setting_depth_md / 1000) * (q / st.session_state.target_rate) ** 1.85
-            return st.session_state.calc['h_lift'] + st.session_state.calc['h_surf'] + friction_at_q
-        
-        system_tdh = [calculate_tdh(q) for q in q_range]
         bep_head = st.session_state.pump_curve(st.session_state.bep_flow) * st.session_state.live_stages
         
         # Create figure
@@ -1022,15 +1443,6 @@ elif page == "🔴 Part 2: Live Monitoring":
             name=f'Pump Curve ({st.session_state.live_stages} stages)',
             line=dict(color='#00E5FF', width=3.5),
             hovertemplate='<b>Flow:</b> %{x:.0f} bpd<br><b>Head:</b> %{y:.0f} ft<extra></extra>'
-        ))
-        
-        # System curve
-        fig.add_trace(go.Scatter(
-            x=q_range, y=system_tdh,
-            mode='lines',
-            name='System Curve',
-            line=dict(color='#FF6B6B', width=3, dash='dash'),
-            hovertemplate='<b>Flow:</b> %{x:.0f} bpd<br><b>Required Head:</b> %{y:.0f} ft<extra></extra>'
         ))
         
         # BEP
@@ -1086,7 +1498,7 @@ elif page == "🔴 Part 2: Live Monitoring":
             plot_bgcolor='#161B22',
             font=dict(color='#E6EDF3', size=13),
             legend=dict(
-                yanchor="bottom", y=0.01,
+                yanchor="top", y=0.99,
                 xanchor="right", x=0.99,
                 bgcolor="rgba(22, 27, 34, 0.95)",
                 bordercolor="#30363D",
@@ -1112,7 +1524,7 @@ elif page == "🔴 Part 2: Live Monitoring":
             )
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         # Additional metrics in cards
         st.markdown("---")
