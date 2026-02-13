@@ -1,4 +1,4 @@
-# ⚡ ESP Performance Dashboard v2.0
+# ⚡ ESP Performance Dashboard v 1.0
 
 <div align="center">
 
@@ -28,7 +28,7 @@ This professional-grade tool combines advanced engineering calculations with rea
 ### 🔧 Part 1: Design & Sizing
 
 #### **Pump Selection & Configuration**
-- ✅ Default pump curve library (OD538-3000)
+- ✅ Default pump curve library (ESP-3000)
 - ✅ Custom pump curve upload via Excel
 - ✅ User-defined BEP (Best Efficiency Point)
 - ✅ Customizable operating range (min/max flow)
@@ -37,7 +37,7 @@ This professional-grade tool combines advanced engineering calculations with rea
 #### **Well & Fluid Data Management**
 - ✅ Complete well geometry input (MD, TVD, depths)
 - ✅ Comprehensive fluid properties (oil API, water cut, GOR)
-- ✅ PVT calculations (Rs, Bo, Bg, Bow)
+- ✅ PVT calculations based on Standing Correlation (Rs, Bo, Bg, Bow)
 - ✅ Pressure and temperature parameters
 - ✅ Productivity index integration
 
@@ -121,6 +121,7 @@ openpyxl>=3.1.0  # For Excel file handling
 - GitHub-inspired color scheme
 - Professional metric cards
 - Status indicators and alerts
+
 ---
 
 ## 🚀 Quick Start
@@ -143,7 +144,7 @@ openpyxl>=3.1.0  # For Excel file handling
 
 3. **Launch the dashboard:**
    ```bash
-   streamlit run esp_dashboard_v02.py
+   streamlit run esp_dashboard.py
    ```
 
 4. **Access the dashboard:**
@@ -155,13 +156,14 @@ openpyxl>=3.1.0  # For Excel file handling
 1. **Part 1 - Design Mode:**
    - Use default pump curve 
    - Enter well name: "Well name"
-   - Set target flow rate:  bpd
+   - Set target flow rate: STBD
    - Configure well depths and pressures
    - Click "Calculate Complete ESP Design"
 
 2. **Part 2 - Live Monitoring:**
    - Enter PIP
-   - Enter PDP: 
+   - Enter PDP
+   - Enter Fluid Pressure Gradient
    - Click "Update Live Data & Analyze Performance"
    - Review real-time performance insights
 
@@ -174,7 +176,7 @@ openpyxl>=3.1.0  # For Excel file handling
 #### Tab 1: Pump Selection
 
 **Option A: Use Default Pump**
-1. Select "Use Default Pump (OD538-3000)"
+1. Select "Use Default Pump (ESP-3000)"
 2. System loads 51 data points automatically
 3. View confirmation message
 
@@ -197,15 +199,15 @@ openpyxl>=3.1.0  # For Excel file handling
 #### Tab 2: Well & Fluid Data
 
 **Well Geometry:**
-- **Well Name**: Identifier for the well (e.g., "NT3", "WELL-A1")
+- **Well Name**: Identifier for the well (e.g., "WELL-A1")
 - **Perforation Start Depth (MD)**: Measured depth to perforations (ft)
 - **Perforation Start Depth (TVD)**: True vertical depth to perforations (ft)
-- **Pump Setting Depth (TVD)**: True vertical pump depth (ft)
 - **Pump Setting Depth (MD)**: Measured depth to pump (ft)
+- **Pump Setting Depth (TVD)**: True vertical pump depth (ft)
 - **Tubing ID**: Internal diameter of production tubing (inches)
 
 **Production Data:**
-- **Desired Surface Gross Rate**: Target production rate (bpd)
+- **Desired Surface Gross Rate**: Target production rate (STBD)
 - **Water Cut**: Fraction of water in production (0.02 = 2%)
 
 **Pressure & Temperature:**
@@ -345,59 +347,29 @@ After clicking "Update Live Data & Analyze Performance":
 
 ---
 
-### Part 1: Design & Sizing
-
-**Tab 1: Pump Selection**
-- Custom pump curve upload interface
-- Performance parameters input
-- Data preview
-
-**Tab 2: Well & Fluid Data**
-- Comprehensive input forms
-- Well geometry configuration
-- Fluid properties setup
-
-**Tab 3: Equipment & Electrical**
-- ESP equipment specifications
-- Electrical parameters
-- Efficiency settings
-
-**Tab 4: Results & Analysis**
-- Key metrics dashboard
-- Expandable calculation sections
-- Interactive performance curve
-- Professional data visualization
-
-### Part 2: Live Monitoring
-
-- Real-time status banner
-- Live sensor data input
-- Current operating point metrics
-- Performance insights and recommendations
-- Interactive live performance chart
-- Additional performance metrics
-
----
-
 ## 📁 Project Structure
 
 ```
 esp-performance-dashboard/
-│
-├── esp_dashboard_v02.py         
+├── esp_dashboard.py         
 ├── requirements.txt             
 ├── README.md                      
+```
+
 ---
+
 ## 📞 Contact
 
 ### Author
-- GitHub: [@uptodate63](https://github.com/uptodate63)
-- Email: uptodate63@gmail.com
-- LinkedIn: [Your LinkedIn Profile](https://linkedin.com/in/fazlollah-koohi)
+- **GitHub**: [@uptodate63](https://github.com/uptodate63)
+- **Email**: [uptodate63@gmail.com](mailto:uptodate63@gmail.com)
+- **LinkedIn**: [Fazlollah Koohi](https://www.linkedin.com/in/fazlollah-koohi)
+
 ---
+
 <div align="center">
 
-**⚡ Made with passion for petroleum engineering excellence ⚡**
+**⚡ Made with passion for petroleum engineers ⚡**
 
 If you find this project useful, please consider giving it a ⭐!
 
